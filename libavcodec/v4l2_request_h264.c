@@ -66,10 +66,13 @@ static void fill_dpb_entry(struct v4l2_h264_dpb_entry *entry, const H264Picture 
     entry->frame_num = pic->frame_num;
     entry->pic_num = pic->pic_id;
     entry->flags = V4L2_H264_DPB_ENTRY_FLAG_VALID;
+    entry->flags |= (pic->reference & 3) << 4;
     if (pic->reference)
         entry->flags |= V4L2_H264_DPB_ENTRY_FLAG_ACTIVE;
     if (pic->long_ref)
         entry->flags |= V4L2_H264_DPB_ENTRY_FLAG_LONG_TERM;
+    if (pic->field_picture)
+        entry->flags |= V4L2_H264_DPB_ENTRY_FLAG_FIELD_PICTURE;
     if (pic->field_poc[0] != INT_MAX)
         entry->top_field_order_cnt = pic->field_poc[0];
     if (pic->field_poc[1] != INT_MAX)
@@ -109,7 +112,8 @@ static uint8_t get_dpb_index(struct v4l2_ctrl_h264_decode_params *decode, const 
         struct v4l2_h264_dpb_entry *entry = &decode->dpb[i];
         if ((entry->flags & V4L2_H264_DPB_ENTRY_FLAG_VALID) &&
             entry->reference_ts == timestamp)
-            return i;
+            // TODO: signal reference type, possible using top 2 bits
+            return i | ((ref->reference & 3) << 6);
     }
 
     return 0;
