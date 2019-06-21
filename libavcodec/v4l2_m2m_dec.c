@@ -131,6 +131,8 @@ static int v4l2_prepare_decoder(V4L2m2mContext *s)
     return 0;
 }
 
+static AVPacket saved_avpkt = { 0 };
+
 static int v4l2_receive_frame(AVCodecContext *avctx, AVFrame *frame)
 {
     V4L2m2mContext *s = ((V4L2m2mPriv*)avctx->priv_data)->context;
@@ -139,9 +141,14 @@ static int v4l2_receive_frame(AVCodecContext *avctx, AVFrame *frame)
     AVPacket avpkt = {0};
     int ret;
 
-    ret = ff_decode_get_packet(avctx, &avpkt);
-    if (ret < 0 && ret != AVERROR_EOF)
-        return ret;
+    if (saved_avpkt.size) {
+	avpkt = saved_avpkt;
+	memset(&saved_avpkt, 0, sizeof(saved_avpkt));
+    } else {
+        ret = ff_decode_get_packet(avctx, &avpkt);
+        if (ret < 0 && ret != AVERROR_EOF)
+            return ret;
+    }
 
     if (s->draining)
         goto dequeue;
@@ -150,6 +157,8 @@ static int v4l2_receive_frame(AVCodecContext *avctx, AVFrame *frame)
     if (ret < 0) {
         if (ret != AVERROR(ENOMEM))
            return ret;
+
+        saved_avpkt = avpkt;
         /* no input buffers available, continue dequeing */
     }
 
@@ -166,7 +175,8 @@ static int v4l2_receive_frame(AVCodecContext *avctx, AVFrame *frame)
     }
 
 dequeue:
-    av_packet_unref(&avpkt);
+    if (!saved_avpkt.size)
+        av_packet_unref(&avpkt);
     return ff_v4l2_context_dequeue_frame(capture, frame);
 }
 
