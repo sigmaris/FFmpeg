@@ -219,7 +219,7 @@ static int v4l2_request_h264_start_frame(AVCodecContext *avctx,
 
     fill_dpb(&controls->decode_params, h);
 
-    controls->first_slice = 1;
+    controls->first_slice = !FIELD_PICTURE(h) || h->first_field;
 
     return ff_v4l2_request_reset_frame(avctx, h->cur_pic_ptr->f);
 }
@@ -359,7 +359,8 @@ static int v4l2_request_h264_decode_slice(AVCodecContext *avctx, const uint8_t *
 
 static int v4l2_request_h264_end_frame(AVCodecContext *avctx)
 {
-    return v4l2_request_h264_queue_decode(avctx, 1);
+    const H264Context *h = avctx->priv_data;
+    return v4l2_request_h264_queue_decode(avctx, !FIELD_PICTURE(h) || !h->first_field);
 }
 
 static int v4l2_request_h264_set_controls(AVCodecContext *avctx)
