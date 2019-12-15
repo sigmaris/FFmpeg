@@ -1,4 +1,4 @@
-ffmpeg (7:4.1.4-2~sigmaris) UNRELEASED; urgency=medium
+ffmpeg (7:4.1.4-2~sigmaris) unstable; urgency=medium
 
   * Add v4l2-request hardware acceleration
 
