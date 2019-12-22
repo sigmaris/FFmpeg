@@ -37,4 +37,5 @@ steps:
 trigger:
   ref:
   - refs/heads/rockpkg
+  - refs/heads/rockpkg-retry
   - refs/tags/*
