@@ -1,4 +1,4 @@
-ffmpeg (7:4.1.4-3~sigmaris) UNRELEASED; urgency=medium
+ffmpeg (7:4.1.4-3~sigmaris) unstable; urgency=medium
 
   * Retry v4l2_request dequeue on EAGAIN error
 
