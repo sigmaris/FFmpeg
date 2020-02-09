@@ -1,0 +1,42 @@
+---
+kind: pipeline
+type: docker
+name: default
+
+platform:
+  os: linux
+  arch: arm64
+
+workspace:
+  base: /drone
+  path: ffmpeg/src
+
+steps:
+- name: build
+  image: debian:bullseye
+  commands:
+  - echo "deb-src http://deb.debian.org/debian bullseye main" >> /etc/apt/sources.list
+  - apt-get update
+  - apt-get -y build-dep ffmpeg
+  - apt-get -y install tree
+  - dpkg-buildpackage -us -uc -b --jobs=auto
+- name: publish
+  image: plugins/github-release
+  settings:
+    api_key:
+      from_secret: github_token
+    files:
+    - /drone/ffmpeg/*.deb
+    checksum:
+    - md5
+    - sha1
+    - sha256
+  when:
+    event: tag
+
+trigger:
+  ref:
+  - refs/heads/rockpkg
+  - refs/heads/rockpkg-retry
+  - refs/heads/rockpkg-bullseye
+  - refs/tags/*
