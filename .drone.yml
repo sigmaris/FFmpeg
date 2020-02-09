@@ -18,7 +18,9 @@ steps:
   - echo "deb-src http://deb.debian.org/debian bullseye main" >> /etc/apt/sources.list
   - apt-get update
   - apt-get -y build-dep ffmpeg
-  - apt-get -y install tree
+  - apt-get -y install tree wget
+  - wget https://github.com/sigmaris/linux/releases/download/5.5-rkvdec-ayufan-ci/linux-libc-dev_5.5.0-g02f0eaab65e2-sigmaris_arm64.deb
+  - dpkg -i linux-libc-dev_5.5.0-g02f0eaab65e2-sigmaris_arm64.deb
   - dpkg-buildpackage -us -uc -b --jobs=auto
 - name: publish
   image: plugins/github-release
