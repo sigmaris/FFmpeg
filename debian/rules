@@ -126,6 +126,8 @@ endif
 # Some libraries are built only on linux.
 ifeq (linux,$(DEB_HOST_ARCH_OS))
 	CONFIG += --enable-libdc1394 \
+		--enable-v4l2-request \
+		--enable-libudev \
 		--enable-libdrm \
 		--enable-libiec61883
 endif

@@ -1,3 +1,9 @@
+ffmpeg (7:4.3.2-@@BUILD NUMBER@@~sigmaris) unstable; urgency=medium
+
+  * Add v4l2-request hardware acceleration based on LibreELEC
+
+ -- Hugh Cole-Baker <sigmaris@gmail.com>  @@BUILD TIMESTAMP@@
+
 ffmpeg (7:4.3.2-0+deb11u1) unstable; urgency=medium
 
   * New upstream release
