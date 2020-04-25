@@ -1,10 +1,15 @@
 Files without standard license headers:
 libavcodec/file_open.c
+libavcodec/h264-ctrls.h
+libavcodec/hevc-ctrls.h
 libavcodec/ilbcdata.h
 libavcodec/ilbcdec.c
 libavcodec/interplayacm.c
 libavcodec/log2_tab.c
+libavcodec/mpeg2-ctrls.h
 libavcodec/reverse.c
+libavcodec/vp8-ctrls.h
+libavcodec/vp9-ctrls.h
 libavdevice/file_open.c
 libavdevice/reverse.c
 libavfilter/af_arnndn.c
@@ -20,5 +25,10 @@ Headers without standard inclusion guards:
 compat/djgpp/math.h
 compat/float/float.h
 compat/float/limits.h
+libavcodec/h264-ctrls.h
+libavcodec/hevc-ctrls.h
+libavcodec/mpeg2-ctrls.h
+libavcodec/vp8-ctrls.h
+libavcodec/vp9-ctrls.h
 Use of av_clip() where av_clip_uintp2() could be used:
 Use of av_clip() where av_clip_intp2() could be used:
