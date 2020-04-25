@@ -61,6 +61,10 @@ Build-Depends:
  libdc1394-22-dev [linux-any],
 # --enable-libdrm
  libdrm-dev [linux-any],
+# --enable-v4l2-request
+ linux-libc-dev [linux-any],
+# --enable-libudev
+ libudev-dev [linux-any],
 # --enable-libfontconfig
  libfontconfig1-dev,
 # --enable-libfreetype

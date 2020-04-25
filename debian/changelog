@@ -1,3 +1,10 @@
+ffmpeg (7:4.3-@@BUILD NUMBER@@~sigmaris) unstable; urgency=medium
+
+  * Add v4l2-request hardware acceleration based on
+    https://github.com/Kwiboo/FFmpeg/tree/v4l2-request-hwaccel-4.3-rkvdec
+
+ -- Hugh Cole-Baker <sigmaris@gmail.com>  @@BUILD TIMESTAMP@@
+
 ffmpeg (7:4.3-3) unstable; urgency=medium
 
   * link with dav1d;
