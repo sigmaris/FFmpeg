@@ -1,0 +1,54 @@
+---
+kind: pipeline
+type: docker
+name: default
+
+platform:
+  os: linux
+  arch: arm64
+
+workspace:
+  base: /drone
+  path: ffmpeg/src
+
+steps:
+- name: build
+  image: ghcr.io/sigmaris/ffmpegbuilder:bullseye
+  commands:
+  - apt-get update
+  - apt-get -y build-dep ffmpeg
+  - wget https://github.com/sigmaris/linux/releases/download/5.10.11-rockpro64-ci/linux-libc-dev_5.10.11-ge653821f3-sigmaris_arm64.deb
+  - dpkg -i linux-libc-dev_5.10.11-ge653821f3-sigmaris_arm64.deb
+  - sed -i -e "s/@@BUILD NUMBER@@/${DRONE_BUILD_NUMBER}/g" debian/changelog
+  - sed -i -e "s/@@BUILD TIMESTAMP@@/$(date '+%a, %d %b %Y %H:%M:%S %z')/g" debian/changelog
+  - dpkg-buildpackage -us -uc -b --jobs=auto
+  - echo "*** Built artifacts ***"
+  - ls -l ..
+- name: bintray
+  image: ghcr.io/sigmaris/ffmpegbuilder:bullseye
+  environment:
+    BINTRAY_USER: sigmaris
+  commands:
+  - cd /drone/ffmpeg
+  - src/publish_bintray.sh
+  when:
+    event:
+      exclude: tag
+- name: publish
+  image: plugins/github-release
+  settings:
+    api_key:
+      from_secret: github_token
+    files:
+    - /drone/ffmpeg/*.deb
+    checksum:
+    - md5
+    - sha1
+    - sha256
+  when:
+    event: tag
+
+trigger:
+  ref:
+  - refs/heads/rockpkg-*
+  - refs/tags/*
