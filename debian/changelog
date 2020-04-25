@@ -1,9 +1,9 @@
-ffmpeg (7:4.3-2~sigmaris) unstable; urgency=medium
+ffmpeg (7:4.3-@@BUILD NUMBER@@~sigmaris) unstable; urgency=medium
 
   * Add v4l2-request hardware acceleration
   * Retry v4l2_request dequeue on EAGAIN error
 
- -- Hugh Cole-Baker <sigmaris@gmail.com>  Sat, 27 Jun 2020 10:54:42 +0100
+ -- Hugh Cole-Baker <sigmaris@gmail.com>  @@BUILD TIMESTAMP@@
 
 ffmpeg (7:4.3-2) unstable; urgency=medium
 
