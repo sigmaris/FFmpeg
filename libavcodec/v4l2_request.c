@@ -47,12 +47,16 @@ int ff_v4l2_request_reset_frame(AVCodecContext *avctx, AVFrame *frame)
 int ff_v4l2_request_append_output_buffer(AVCodecContext *avctx, AVFrame *frame, const uint8_t *data, uint32_t size)
 {
     V4L2RequestDescriptor *req = (V4L2RequestDescriptor*)frame->data[0];
-    memcpy(req->output.addr + req->output.used, data, size);
-    req->output.used += size;
+    if (req->output.used + size + (AV_INPUT_BUFFER_PADDING_SIZE * 4) <= req->output.size) {
+        memcpy(req->output.addr + req->output.used, data, size);
+        req->output.used += size;
+    } else {
+        av_log(avctx, AV_LOG_ERROR, "%s: output.used=%u output.size=%u size=%u\n", __func__, req->output.used, req->output.size, size);
+    }
     return 0;
 }
 
-static int v4l2_request_set_controls(V4L2RequestContext *ctx, int request_fd, struct v4l2_ext_control *control, int count)
+static int v4l2_request_controls(V4L2RequestContext *ctx, int request_fd, unsigned long type, struct v4l2_ext_control *control, int count)
 {
     struct v4l2_ext_controls controls = {
         .controls = control,
@@ -64,7 +68,12 @@ static int v4l2_request_set_controls(V4L2RequestContext *ctx, int request_fd, st
     if (!control || !count)
         return 0;
 
-    return ioctl(ctx->video_fd, VIDIOC_S_EXT_CTRLS, &controls);
+    return ioctl(ctx->video_fd, type, &controls);
+}
+
+static int v4l2_request_set_controls(V4L2RequestContext *ctx, int request_fd, struct v4l2_ext_control *control, int count)
+{
+    return v4l2_request_controls(ctx, request_fd, VIDIOC_S_EXT_CTRLS, control, count);
 }
 
 int ff_v4l2_request_set_controls(AVCodecContext *avctx, struct v4l2_ext_control *control, int count)
@@ -72,13 +81,41 @@ int ff_v4l2_request_set_controls(AVCodecContext *avctx, struct v4l2_ext_control 
     V4L2RequestContext *ctx = avctx->internal->hwaccel_priv_data;
     int ret;
 
-    ret = v4l2_request_set_controls(ctx, -1, control, count);
+    ret = v4l2_request_controls(ctx, -1, VIDIOC_S_EXT_CTRLS, control, count);
     if (ret < 0) {
         av_log(avctx, AV_LOG_ERROR, "%s: set controls failed, %s (%d)\n", __func__, strerror(errno), errno);
         return AVERROR(EINVAL);
     }
 
     return ret;
+}
+
+int ff_v4l2_request_get_controls(AVCodecContext *avctx, struct v4l2_ext_control *control, int count)
+{
+    V4L2RequestContext *ctx = avctx->internal->hwaccel_priv_data;
+    int ret;
+
+    ret = v4l2_request_controls(ctx, -1, VIDIOC_G_EXT_CTRLS, control, count);
+    if (ret < 0) {
+        av_log(avctx, AV_LOG_ERROR, "%s: get controls failed, %s (%d)\n", __func__, strerror(errno), errno);
+        return AVERROR(EINVAL);
+    }
+
+    return ret;
+}
+
+int ff_v4l2_request_query_control(AVCodecContext *avctx, struct v4l2_query_ext_ctrl *control)
+{
+    int ret;
+    V4L2RequestContext *ctx = avctx->internal->hwaccel_priv_data;
+
+    ret = ioctl(ctx->video_fd, VIDIOC_QUERY_EXT_CTRL, control);
+    if (ret < 0) {
+        av_log(avctx, AV_LOG_ERROR, "%s: query control failed, %s (%d)\n", __func__, strerror(errno), errno);
+        return AVERROR(EINVAL);
+    }
+
+    return 0;
 }
 
 int ff_v4l2_request_query_control_default_value(AVCodecContext *avctx, uint32_t id)
@@ -211,7 +248,7 @@ static int v4l2_request_queue_decode(AVCodecContext *avctx, AVFrame *frame, stru
         return -1;
     }
 
-    memset(req->output.addr + req->output.used, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+    memset(req->output.addr + req->output.used, 0, AV_INPUT_BUFFER_PADDING_SIZE * 4);
 
     ret = v4l2_request_queue_buffer(ctx, req->request_fd, &req->output, last_slice ? 0 : V4L2_BUF_FLAG_M2M_HOLD_CAPTURE_BUF);
     if (ret < 0) {
@@ -470,7 +507,7 @@ static int v4l2_request_probe_video_device(struct udev_device *device, AVCodecCo
 
     ret = v4l2_request_try_format(avctx, ctx->output_type, pixelformat);
     if (ret < 0) {
-        av_log(avctx, AV_LOG_ERROR, "%s: try output format failed\n", __func__);
+        av_log(avctx, AV_LOG_WARNING, "%s: try output format failed\n", __func__);
         ret = AVERROR(EINVAL);
         goto fail;
     }
