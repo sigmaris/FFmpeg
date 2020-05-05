@@ -161,21 +161,21 @@ static int v4l2_request_vp8_decode_slice(AVCodecContext *avctx,
 
 static int v4l2_request_vp8_init(AVCodecContext *avctx)
 {
-    return ff_v4l2_request_init(avctx, V4L2_PIX_FMT_VP8_FRAME, 1024 * 1024, NULL, 0);
+    return ff_v4l2_request_init(avctx, V4L2_PIX_FMT_VP8_FRAME, 2 * 1024 * 1024, NULL, 0);
 }
 
 const AVHWAccel ff_vp8_v4l2request_hwaccel = {
-    .name                 = "vp8_v4l2request",
-    .type                 = AVMEDIA_TYPE_VIDEO,
-    .id                   = AV_CODEC_ID_VP8,
-    .pix_fmt              = AV_PIX_FMT_DRM_PRIME,
-    .start_frame          = v4l2_request_vp8_start_frame,
-    .decode_slice         = v4l2_request_vp8_decode_slice,
-    .end_frame            = v4l2_request_vp8_end_frame,
+    .name           = "vp8_v4l2request",
+    .type           = AVMEDIA_TYPE_VIDEO,
+    .id             = AV_CODEC_ID_VP8,
+    .pix_fmt        = AV_PIX_FMT_DRM_PRIME,
+    .start_frame    = v4l2_request_vp8_start_frame,
+    .decode_slice   = v4l2_request_vp8_decode_slice,
+    .end_frame      = v4l2_request_vp8_end_frame,
     .frame_priv_data_size = sizeof(V4L2RequestControlsVP8),
-    .init                 = v4l2_request_vp8_init,
-    .uninit               = ff_v4l2_request_uninit,
-    .priv_data_size       = sizeof(V4L2RequestContext),
-    .frame_params         = ff_v4l2_request_frame_params,
-    .caps_internal        = HWACCEL_CAP_ASYNC_SAFE,
+    .init           = v4l2_request_vp8_init,
+    .uninit         = ff_v4l2_request_uninit,
+    .priv_data_size = sizeof(V4L2RequestContext),
+    .frame_params   = ff_v4l2_request_frame_params,
+    .caps_internal  = HWACCEL_CAP_ASYNC_SAFE,
 };
