@@ -28,7 +28,16 @@
 
 #include "decode.h"
 #include "internal.h"
+#include "libavutil/pixdesc.h"
 #include "v4l2_request.h"
+
+#ifndef DRM_FORMAT_NV15
+#define DRM_FORMAT_NV15 fourcc_code('N', 'V', '1', '5')
+#endif
+
+#ifndef DRM_FORMAT_NV20
+#define DRM_FORMAT_NV20 fourcc_code('N', 'V', '2', '0')
+#endif
 
 uint64_t ff_v4l2_request_get_capture_timestamp(AVFrame *frame)
 {
@@ -183,10 +192,26 @@ static int v4l2_request_dequeue_buffer(V4L2RequestContext *ctx, V4L2RequestBuffe
     return 0;
 }
 
-const uint32_t v4l2_request_capture_pixelformats[] = {
+const uint32_t v4l2_request_capture_pixelformats_420[] = {
     V4L2_PIX_FMT_NV12,
 #ifdef DRM_FORMAT_MOD_ALLWINNER_TILED
     V4L2_PIX_FMT_SUNXI_TILED_NV12,
+#endif
+};
+
+const uint32_t v4l2_request_capture_pixelformats_420_10[] = {
+#ifdef V4L2_PIX_FMT_NV15
+    V4L2_PIX_FMT_NV15,
+#endif
+};
+
+const uint32_t v4l2_request_capture_pixelformats_422[] = {
+    V4L2_PIX_FMT_NV16,
+};
+
+const uint32_t v4l2_request_capture_pixelformats_422_10[] = {
+#ifdef V4L2_PIX_FMT_NV20
+    V4L2_PIX_FMT_NV20,
 #endif
 };
 
@@ -205,6 +230,22 @@ static int v4l2_request_set_drm_descriptor(V4L2RequestDescriptor *req, struct v4
     case V4L2_PIX_FMT_SUNXI_TILED_NV12:
         layer->format = DRM_FORMAT_NV12;
         desc->objects[0].format_modifier = DRM_FORMAT_MOD_ALLWINNER_TILED;
+        break;
+#endif
+#ifdef V4L2_PIX_FMT_NV15
+    case V4L2_PIX_FMT_NV15:
+        layer->format = DRM_FORMAT_NV15;
+        desc->objects[0].format_modifier = DRM_FORMAT_MOD_LINEAR;
+        break;
+#endif
+    case V4L2_PIX_FMT_NV16:
+        layer->format = DRM_FORMAT_NV16;
+        desc->objects[0].format_modifier = DRM_FORMAT_MOD_LINEAR;
+        break;
+#ifdef V4L2_PIX_FMT_NV20
+    case V4L2_PIX_FMT_NV20:
+        layer->format = DRM_FORMAT_NV20;
+        desc->objects[0].format_modifier = DRM_FORMAT_MOD_LINEAR;
         break;
 #endif
     default:
@@ -442,10 +483,31 @@ static int v4l2_request_select_capture_format(AVCodecContext *avctx)
         fmtdesc.index++;
     }
 #else
-    for (int i = 0; i < FF_ARRAY_ELEMS(v4l2_request_capture_pixelformats); i++) {
-        uint32_t pixelformat = v4l2_request_capture_pixelformats[i];
-        if (!v4l2_request_try_format(avctx, type, pixelformat))
-            return v4l2_request_set_format(avctx, type, pixelformat, 0);
+    av_log(avctx, AV_LOG_DEBUG, "%s: avctx=%p pix_fmt=%s sw_pix_fmt=%s\n", __func__, avctx, av_get_pix_fmt_name(avctx->pix_fmt), av_get_pix_fmt_name(avctx->sw_pix_fmt));
+    if (avctx->sw_pix_fmt == AV_PIX_FMT_YUV420P || avctx->sw_pix_fmt == AV_PIX_FMT_YUVJ420P) {
+        for (int i = 0; i < FF_ARRAY_ELEMS(v4l2_request_capture_pixelformats_420); i++) {
+            uint32_t pixelformat = v4l2_request_capture_pixelformats_420[i];
+            if (!v4l2_request_try_format(avctx, type, pixelformat))
+                return v4l2_request_set_format(avctx, type, pixelformat, 0);
+        }
+    } else if (avctx->sw_pix_fmt == AV_PIX_FMT_YUV420P10) {
+        for (int i = 0; i < FF_ARRAY_ELEMS(v4l2_request_capture_pixelformats_420_10); i++) {
+            uint32_t pixelformat = v4l2_request_capture_pixelformats_420_10[i];
+            if (!v4l2_request_try_format(avctx, type, pixelformat))
+                return v4l2_request_set_format(avctx, type, pixelformat, 0);
+        }
+    } else if (avctx->sw_pix_fmt == AV_PIX_FMT_YUV422P || avctx->sw_pix_fmt == AV_PIX_FMT_YUVJ422P) {
+        for (int i = 0; i < FF_ARRAY_ELEMS(v4l2_request_capture_pixelformats_422); i++) {
+            uint32_t pixelformat = v4l2_request_capture_pixelformats_422[i];
+            if (!v4l2_request_try_format(avctx, type, pixelformat))
+                return v4l2_request_set_format(avctx, type, pixelformat, 0);
+        }
+    } else if (avctx->sw_pix_fmt == AV_PIX_FMT_YUV422P10) {
+        for (int i = 0; i < FF_ARRAY_ELEMS(v4l2_request_capture_pixelformats_422_10); i++) {
+            uint32_t pixelformat = v4l2_request_capture_pixelformats_422_10[i];
+            if (!v4l2_request_try_format(avctx, type, pixelformat))
+                return v4l2_request_set_format(avctx, type, pixelformat, 0);
+        }
     }
 #endif
 
