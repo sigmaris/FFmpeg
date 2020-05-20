@@ -3750,6 +3750,11 @@ typedef struct AVHWAccel {
     int (*end_frame)(AVCodecContext *avctx);
 
     /**
+     * Called when frame is returned to api user.
+     */
+    int (*output_frame)(AVCodecContext *avctx, AVFrame *frame);
+
+    /**
      * Size of per-frame hardware accelerator private data.
      *
      * Private data is allocated with av_mallocz() before

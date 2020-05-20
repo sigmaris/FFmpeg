@@ -172,6 +172,7 @@ const AVHWAccel ff_vp8_v4l2request_hwaccel = {
     .start_frame    = v4l2_request_vp8_start_frame,
     .decode_slice   = v4l2_request_vp8_decode_slice,
     .end_frame      = v4l2_request_vp8_end_frame,
+    .output_frame   = ff_v4l2_request_output_frame,
     .frame_priv_data_size = sizeof(V4L2RequestControlsVP8),
     .init           = v4l2_request_vp8_init,
     .uninit         = ff_v4l2_request_uninit,

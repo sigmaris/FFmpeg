@@ -146,6 +146,7 @@ const AVHWAccel ff_mpeg2_v4l2request_hwaccel = {
     .start_frame    = v4l2_request_mpeg2_start_frame,
     .decode_slice   = v4l2_request_mpeg2_decode_slice,
     .end_frame      = v4l2_request_mpeg2_end_frame,
+    .output_frame   = ff_v4l2_request_output_frame,
     .frame_priv_data_size = sizeof(V4L2RequestControlsMPEG2),
     .init           = v4l2_request_mpeg2_init,
     .uninit         = ff_v4l2_request_uninit,
