@@ -386,6 +386,15 @@ int ff_v4l2_request_decode_frame(AVCodecContext *avctx, AVFrame *frame, struct v
     return v4l2_request_queue_decode(avctx, frame, control, count, 1, 1);
 }
 
+int ff_v4l2_request_output_frame(AVCodecContext *avctx, AVFrame *frame)
+{
+    V4L2RequestContext *ctx = avctx->internal->hwaccel_priv_data;
+    V4L2RequestDescriptor *req = (V4L2RequestDescriptor*)frame->data[0];
+
+    av_log(avctx, AV_LOG_DEBUG, "%s: avctx=%p used=%u index=%d fd=%d request_fd=%d\n", __func__, avctx, req->output.used, req->capture.index, req->capture.fd, req->request_fd);
+    return 0;
+}
+
 static int v4l2_request_try_format(AVCodecContext *avctx, enum v4l2_buf_type type, uint32_t pixelformat)
 {
     V4L2RequestContext *ctx = avctx->internal->hwaccel_priv_data;

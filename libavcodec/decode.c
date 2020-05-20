@@ -359,6 +359,9 @@ static inline int decode_simple_internal(AVCodecContext *avctx, AVFrame *frame)
     emms_c();
     actual_got_frame = got_frame;
 
+    if (got_frame && avctx->hwaccel && avctx->hwaccel->output_frame)
+        avctx->hwaccel->output_frame(avctx, frame);
+
     if (avctx->codec->type == AVMEDIA_TYPE_VIDEO) {
         if (frame->flags & AV_FRAME_FLAG_DISCARD)
             got_frame = 0;
