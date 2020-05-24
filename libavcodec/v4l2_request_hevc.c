@@ -21,11 +21,13 @@
 #include "v4l2_request.h"
 #include "hevc-ctrls.h"
 
+#define MAX_SLICES 16
+
 typedef struct V4L2RequestControlsHEVC {
     struct v4l2_ctrl_hevc_sps sps;
     struct v4l2_ctrl_hevc_pps pps;
     struct v4l2_ctrl_hevc_scaling_matrix scaling_matrix;
-    struct v4l2_ctrl_hevc_slice_params slice_params[16];
+    struct v4l2_ctrl_hevc_slice_params slice_params[MAX_SLICES];
     int first_slice;
     int num_slices; //TODO: this should be in control
 } V4L2RequestControlsHEVC;
@@ -34,7 +36,10 @@ typedef struct V4L2RequestContextHEVC {
     V4L2RequestContext base;
     int decode_mode;
     int start_code;
+    int max_slices;
 } V4L2RequestContextHEVC;
+
+static uint8_t nalu_slice_start_code[] = { 0x00, 0x00, 0x01 };
 
 static void v4l2_request_hevc_fill_pred_table(const HEVCContext *h, struct v4l2_hevc_pred_weight_table *table)
 {
@@ -392,9 +397,6 @@ static int v4l2_request_hevc_start_frame(AVCodecContext *avctx,
         controls->pps.num_tile_columns_minus1 = pps->num_tile_columns - 1;
         controls->pps.num_tile_rows_minus1 = pps->num_tile_rows - 1;
 
-        av_log(avctx, AV_LOG_DEBUG, "%s: avctx=%p tiles_enabled_flag=%d num_tile_columns=%d num_tile_rows=%d\n",
-	       __func__, avctx, pps->tiles_enabled_flag, pps->num_tile_columns, pps->num_tile_rows);
-
         for (int i = 0; i < pps->num_tile_columns; i++)
             controls->pps.column_width_minus1[i] = pps->column_width[i] - 1;
 
@@ -433,7 +435,7 @@ static int v4l2_request_hevc_queue_decode(AVCodecContext *avctx, int last_slice)
         {
             .id = V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS,
             .ptr = &controls->slice_params,
-            .size = sizeof(controls->slice_params[0]) * FFMIN(controls->num_slices, 16),
+            .size = sizeof(controls->slice_params[0]) * FFMAX(FFMIN(controls->num_slices, MAX_SLICES), ctx->max_slices),
         },
     };
 
@@ -443,30 +445,31 @@ static int v4l2_request_hevc_queue_decode(AVCodecContext *avctx, int last_slice)
     return ff_v4l2_request_decode_frame(avctx, h->ref->frame, control, FF_ARRAY_ELEMS(control));
 }
 
-static int v4l2_request_hevc_end_frame(AVCodecContext *avctx)
-{
-    return v4l2_request_hevc_queue_decode(avctx, 1);
-}
-
 static int v4l2_request_hevc_decode_slice(AVCodecContext *avctx, const uint8_t *buffer, uint32_t size)
 {
     const HEVCContext *h = avctx->priv_data;
     V4L2RequestControlsHEVC *controls = h->ref->hwaccel_picture_private;
-    V4L2RequestDescriptor *req = (V4L2RequestDescriptor*)h->ref->frame->data[0];
     V4L2RequestContextHEVC *ctx = avctx->internal->hwaccel_priv_data;
-    int ret, slice = FFMIN(controls->num_slices, 15);
+    V4L2RequestDescriptor *req = (V4L2RequestDescriptor*)h->ref->frame->data[0];
+    int ret, slice = FFMIN(controls->num_slices, MAX_SLICES - 1);
 
     if (ctx->decode_mode == V4L2_MPEG_VIDEO_HEVC_DECODE_MODE_SLICE_BASED && slice) {
         ret = v4l2_request_hevc_queue_decode(avctx, 0);
         if (ret)
             return ret;
 
-	ff_v4l2_request_reset_frame(avctx, h->ref->frame);
+        ff_v4l2_request_reset_frame(avctx, h->ref->frame);
         slice = controls->num_slices = 0;
         controls->first_slice = 0;
     }
 
     v4l2_request_hevc_fill_slice_params(h, &controls->slice_params[slice]);
+
+    if (ctx->start_code == V4L2_MPEG_VIDEO_HEVC_START_CODE_ANNEX_B) {
+        ret = ff_v4l2_request_append_output_buffer(avctx, h->ref->frame, nalu_slice_start_code, 3);
+        if (ret)
+            return ret;
+    }
 
     ret = ff_v4l2_request_append_output_buffer(avctx, h->ref->frame, buffer, size);
     if (ret)
@@ -474,17 +477,25 @@ static int v4l2_request_hevc_decode_slice(AVCodecContext *avctx, const uint8_t *
 
     controls->slice_params[slice].bit_size = req->output.used * 8; //FIXME
     controls->num_slices++;
-
     return 0;
+}
+
+static int v4l2_request_hevc_end_frame(AVCodecContext *avctx)
+{
+    return v4l2_request_hevc_queue_decode(avctx, 1);
 }
 
 static int v4l2_request_hevc_set_controls(AVCodecContext *avctx)
 {
     V4L2RequestContextHEVC *ctx = avctx->internal->hwaccel_priv_data;
+    int ret;
 
     struct v4l2_ext_control control[] = {
         { .id = V4L2_CID_MPEG_VIDEO_HEVC_DECODE_MODE, },
         { .id = V4L2_CID_MPEG_VIDEO_HEVC_START_CODE, },
+    };
+    struct v4l2_query_ext_ctrl slice_params = {
+        .id = V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS,
     };
 
     ctx->decode_mode = ff_v4l2_request_query_control_default_value(avctx, V4L2_CID_MPEG_VIDEO_HEVC_DECODE_MODE);
@@ -498,6 +509,16 @@ static int v4l2_request_hevc_set_controls(AVCodecContext *avctx)
     if (ctx->start_code != V4L2_MPEG_VIDEO_HEVC_START_CODE_NONE &&
         ctx->start_code != V4L2_MPEG_VIDEO_HEVC_START_CODE_ANNEX_B) {
         av_log(avctx, AV_LOG_ERROR, "%s: unsupported start code, %d\n", __func__, ctx->start_code);
+        return AVERROR(EINVAL);
+    }
+
+    ret = ff_v4l2_request_query_control(avctx, &slice_params);
+    if (ret)
+        return ret;
+
+    ctx->max_slices = slice_params.elems;
+    if (ctx->max_slices > MAX_SLICES) {
+        av_log(avctx, AV_LOG_ERROR, "%s: unsupported max slices, %d\n", __func__, ctx->max_slices);
         return AVERROR(EINVAL);
     }
 
@@ -518,12 +539,12 @@ static int v4l2_request_hevc_init(AVCodecContext *avctx)
             .id = V4L2_CID_MPEG_VIDEO_HEVC_SPS,
             .ptr = &sps,
             .size = sizeof(sps),
-        }
+        },
     };
 
     fill_sps(&sps, h);
 
-    ret = ff_v4l2_request_init(avctx, V4L2_PIX_FMT_HEVC_SLICE, 3 * 1024 * 1024, control, FF_ARRAY_ELEMS(control));
+    ret = ff_v4l2_request_init(avctx, V4L2_PIX_FMT_HEVC_SLICE, 4 * 1024 * 1024, control, FF_ARRAY_ELEMS(control));
     if (ret)
         return ret;
 
