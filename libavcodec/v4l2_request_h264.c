@@ -26,7 +26,7 @@ typedef struct V4L2RequestControlsH264 {
     struct v4l2_ctrl_h264_pps pps;
     struct v4l2_ctrl_h264_scaling_matrix scaling_matrix;
     struct v4l2_ctrl_h264_decode_params decode_params;
-    struct v4l2_ctrl_h264_slice_params slice_params[16];
+    struct v4l2_ctrl_h264_slice_params slice_params[MAX_SLICES];
     int first_slice;
 } V4L2RequestControlsH264;
 
@@ -34,6 +34,7 @@ typedef struct V4L2RequestContextH264 {
     V4L2RequestContext base;
     int decode_mode;
     int start_code;
+    int max_slices;
 } V4L2RequestContextH264;
 
 static uint8_t nalu_slice_start_code[] = { 0x00, 0x00, 0x01 };
@@ -164,8 +165,10 @@ static void fill_sps(struct v4l2_ctrl_h264_sps *ctrl, const H264Context *h)
 
 static void fill_pps(struct v4l2_ctrl_h264_pps *ctrl, const H264Context *h)
 {
+    const SPS *sps = h->ps.sps;
     const PPS *pps = h->ps.pps;
     const H264SliceContext *sl = &h->slice_ctx[0];
+    int qp_bd_offset = 6 * (sps->bit_depth_luma - 8);
 
     *ctrl = (struct v4l2_ctrl_h264_pps) {
         .pic_parameter_set_id = sl->pps_id,
@@ -174,8 +177,8 @@ static void fill_pps(struct v4l2_ctrl_h264_pps *ctrl, const H264Context *h)
         .num_ref_idx_l0_default_active_minus1 = pps->ref_count[0] - 1,
         .num_ref_idx_l1_default_active_minus1 = pps->ref_count[1] - 1,
         .weighted_bipred_idc = pps->weighted_bipred_idc,
-        .pic_init_qp_minus26 = pps->init_qp - 26,
-        .pic_init_qs_minus26 = pps->init_qs - 26,
+        .pic_init_qp_minus26 = pps->init_qp - 26 - qp_bd_offset,
+        .pic_init_qs_minus26 = pps->init_qs - 26 - qp_bd_offset,
         .chroma_qp_index_offset = pps->chroma_qp_index_offset[0],
         .second_chroma_qp_index_offset = pps->chroma_qp_index_offset[1],
     };
@@ -261,7 +264,7 @@ static int v4l2_request_h264_queue_decode(AVCodecContext *avctx, int last_slice)
         {
             .id = V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS,
             .ptr = &controls->slice_params,
-            .size = sizeof(controls->slice_params[0]) * FFMIN(controls->decode_params.num_slices, 16),
+            .size = sizeof(controls->slice_params[0]) * FFMAX(FFMIN(controls->decode_params.num_slices, MAX_SLICES), ctx->max_slices),
         },
         {
             .id = V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS,
@@ -284,7 +287,7 @@ static int v4l2_request_h264_decode_slice(AVCodecContext *avctx, const uint8_t *
     V4L2RequestControlsH264 *controls = h->cur_pic_ptr->hwaccel_picture_private;
     V4L2RequestContextH264 *ctx = avctx->internal->hwaccel_priv_data;
     V4L2RequestDescriptor *req = (V4L2RequestDescriptor*)h->cur_pic_ptr->f->data[0];
-    int i, ret, count, slice = FFMIN(controls->decode_params.num_slices, 15);
+    int i, ret, count, slice = FFMIN(controls->decode_params.num_slices, MAX_SLICES - 1);
 
     if (ctx->decode_mode == V4L2_MPEG_VIDEO_H264_DECODE_MODE_SLICE_BASED && slice) {
         ret = v4l2_request_h264_queue_decode(avctx, 0);
@@ -378,10 +381,14 @@ static int v4l2_request_h264_end_frame(AVCodecContext *avctx)
 static int v4l2_request_h264_set_controls(AVCodecContext *avctx)
 {
     V4L2RequestContextH264 *ctx = avctx->internal->hwaccel_priv_data;
+    int ret;
 
     struct v4l2_ext_control control[] = {
         { .id = V4L2_CID_MPEG_VIDEO_H264_DECODE_MODE, },
         { .id = V4L2_CID_MPEG_VIDEO_H264_START_CODE, },
+    };
+    struct v4l2_query_ext_ctrl slice_params = {
+        .id = V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAMS,
     };
 
     ctx->decode_mode = ff_v4l2_request_query_control_default_value(avctx, V4L2_CID_MPEG_VIDEO_H264_DECODE_MODE);
@@ -395,6 +402,16 @@ static int v4l2_request_h264_set_controls(AVCodecContext *avctx)
     if (ctx->start_code != V4L2_MPEG_VIDEO_H264_START_CODE_NONE &&
         ctx->start_code != V4L2_MPEG_VIDEO_H264_START_CODE_ANNEX_B) {
         av_log(avctx, AV_LOG_ERROR, "%s: unsupported start code, %d\n", __func__, ctx->start_code);
+        return AVERROR(EINVAL);
+    }
+
+    ret = ff_v4l2_request_query_control(avctx, &slice_params);
+    if (ret)
+        return ret;
+
+    ctx->max_slices = slice_params.elems;
+    if (ctx->max_slices > MAX_SLICES) {
+        av_log(avctx, AV_LOG_ERROR, "%s: unsupported max slices, %d\n", __func__, ctx->max_slices);
         return AVERROR(EINVAL);
     }
 
@@ -427,7 +444,7 @@ static int v4l2_request_h264_init(AVCodecContext *avctx)
     fill_sps(&sps, h);
     fill_pps(&pps, h);
 
-    ret = ff_v4l2_request_init(avctx, V4L2_PIX_FMT_H264_SLICE, 2 * 1024 * 1024, control, FF_ARRAY_ELEMS(control));
+    ret = ff_v4l2_request_init(avctx, V4L2_PIX_FMT_H264_SLICE, 4 * 1024 * 1024, control, FF_ARRAY_ELEMS(control));
     if (ret)
         return ret;
 
