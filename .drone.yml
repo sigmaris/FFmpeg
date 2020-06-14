@@ -19,8 +19,8 @@ steps:
   - apt-get update
   - apt-get -y build-dep ffmpeg
   - apt-get -y install tree wget
-  - wget https://github.com/sigmaris/linux/releases/download/5.5-rkvdec-ayufan-ci/linux-libc-dev_5.5.0-g02f0eaab65e2-sigmaris_arm64.deb
-  - dpkg -i linux-libc-dev_5.5.0-g02f0eaab65e2-sigmaris_arm64.deb
+  - wget https://github.com/sigmaris/linux/releases/download/5.7.0-next-20200605-rkvdec-ci/linux-libc-dev_5.7.0-next-20200605-g5a7204851703-sigmaris_arm64.deb
+  - dpkg -i linux-libc-dev_5.7.0-next-20200605-g5a7204851703-sigmaris_arm64.deb
   - sed -i -e "s/@@BUILD NUMBER@@/${DRONE_BUILD_NUMBER}/g" debian/changelog
   - sed -i -e "s/@@BUILD TIMESTAMP@@/$(date '+%a, %d %b %Y %H:%M:%S %z')/g" debian/changelog
   - dpkg-buildpackage -us -uc -b --jobs=auto
@@ -42,7 +42,5 @@ steps:
 
 trigger:
   ref:
-  - refs/heads/rockpkg
-  - refs/heads/rockpkg-retry
-  - refs/heads/rockpkg-bullseye
+  - refs/heads/rockpkg-*
   - refs/tags/*
