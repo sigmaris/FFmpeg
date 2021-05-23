@@ -24,13 +24,13 @@ steps:
   - dpkg-buildpackage -us -uc -b --jobs=auto
   - echo "*** Built artifacts ***"
   - ls -l ..
-- name: bintray
+- name: filebucket
   image: ghcr.io/sigmaris/ffmpegbuilder:bullseye
   environment:
-    BINTRAY_USER: sigmaris
+    FILEBUCKET_USER: drone.io
   commands:
   - cd /drone/ffmpeg
-  - src/publish_bintray.sh
+  - src/upload_artifacts.sh
   when:
     event:
       exclude: tag
