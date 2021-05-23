@@ -11,6 +11,9 @@ workspace:
   base: /drone
   path: ffmpeg/src
 
+clone:
+  depth: 1
+
 steps:
 - name: build
   image: ghcr.io/sigmaris/ffmpegbuilder:bullseye
