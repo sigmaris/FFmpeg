@@ -28,6 +28,10 @@ steps:
   image: ghcr.io/sigmaris/ffmpegbuilder:bullseye
   environment:
     FILEBUCKET_USER: drone.io
+    FILEBUCKET_PASSWORD:
+      from_secret: FILEBUCKET_PASSWORD
+    FILEBUCKET_SERVER:
+      from_secret: FILEBUCKET_SERVER
   commands:
   - cd /drone/ffmpeg
   - src/upload_artifacts.sh
